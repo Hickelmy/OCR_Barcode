@@ -32,6 +32,20 @@ export default function TabLayout() {
           ),
         }}
       />
+
+      
+
+
+    <Tabs.Screen
+        name="barcode"
+        options={{
+          title: 'Codigo de Barra',
+          tabBarIcon: ({ color, focused }) => (
+            <TabBarIcon name={focused ? 'barcode' : 'barcode-outline'} color={color} />
+          ),
+        }}
+      />
+
     </Tabs>
   );
 }
