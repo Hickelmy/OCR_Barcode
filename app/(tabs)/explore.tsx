@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; 
+import React, { useState, useEffect } from 'react';
 import { View, FlatList, Button, StyleSheet, Dimensions, Image, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -13,7 +13,7 @@ const TabTwoScreen = () => {
     setLoading(true);
     try {
       const response = await axios.get('http://localhost:4000/get_images');
-      const fetchedImages = response.data.map((item : any) => ({
+      const fetchedImages = response.data.map((item: any) => ({
         id: item._id,
         src: item.image,
       }));
@@ -57,7 +57,7 @@ const TabTwoScreen = () => {
   };
 
   // Renderização de cada imagem na galeria
-  const renderImageItem = ({ item } : any) => {
+  const renderImageItem = ({ item }: any) => {
     const { width } = Dimensions.get('window');
     const imageSize = (width - 20) / numColumns - 10;
 

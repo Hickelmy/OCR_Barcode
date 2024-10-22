@@ -1,184 +1,113 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Text, View, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import React, { useState } from 'react';
+import { Button, Image, View, StyleSheet, Text } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as MediaLibrary from 'expo-media-library';
-import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
-import * as Tesseract from 'tesseract.js';
+import axios from 'axios';
+import DropDownPicker from 'react-native-dropdown-picker';
 
-export default function App() {
-  const [scanned, setScanned] = useState(false); 
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [facing, setFacing] = useState<CameraType>('back');
-  const [permission, requestPermission] = useCameraPermissions();
-  const [ocrResult, setOcrResult] = useState<string | null>(null);
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [isScannerActive, setIsScannerActive] = useState(false);
-  const cameraRef = useRef<CameraView | null>(null);
+export default function ImagePickerExample() {
+  const [image, setImage] = useState<string | null>(null);
+  const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [extractedText, setExtractedText] = useState<string | null>(null);
+  const [lang, setLang] = useState('en');
+  const [confidence, setConfidence] = useState(0.5);
+  const [langOpen, setLangOpen] = useState(false);
+  const [confidenceOpen, setConfidenceOpen] = useState(false);
 
-  useEffect(() => {
-    const getCameraPermissions = async () => {
-      const { status } = await requestPermission();
-      setHasPermission(status === 'granted');
-      await MediaLibrary.requestPermissionsAsync();
-    };
-
-    getCameraPermissions();
-  }, []);
-
-  const handleImageCapture = async () => {
+  const pickImage = async () => {
     try {
-      if (cameraRef.current) {
-        const photo = await cameraRef.current.takePictureAsync();
-        if (!photo) {
-          throw new Error('Failed to capture image');
-        }
-        setImageUri(photo.uri);
-        handleSaveImage(photo.uri);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+      });
+
+      if (!result.canceled) {
+        setImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Error capturing image: ', error);
+      console.error('Error picking image:', error);
     }
   };
 
-
-  const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
-    setScanned(true);
-    alert(`Bar code with type ${type} and data ${data} has been scanned!`);
-  };
-  
-  const handleImagePick = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-    }) as ImagePicker.ImagePickerResult;
-
-    if (!result.canceled) {
-      setImageUri(result.uri);
-      performOcr(result.uri);
+  const sendImage = async () => {
+    if (image) {
+      try {
+        const base64Image = await convertToBase64(image);
+        const response = await axios.post('http://10.58.64.123:7070/processar_imagem', {
+          image: base64Image,
+          lang,
+          confidence,
+        },
+          {
+            timeout: 30000,
+          }
+        );
+        setProcessedImage(response.data.imagem_com_caixas_base64);
+        setExtractedText(response.data.texto_extraido);
+      } catch (error) {
+        console.error('Error sending image:', error);
+      }
     }
   };
 
-  const performOcr = async (uri: string) => {
+  const convertToBase64 = async (uri: string) => {
     try {
-      const result = await Tesseract.recognize(
-        uri,
-        'eng',
-        {
-          logger: (m) => console.log(m),
-        }
-      );
-      setOcrResult(result.data.text);
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
     } catch (error) {
-      console.error('OCR error: ', error);
+      console.error('Error converting image to base64:', error);
+      throw error;
     }
   };
-
-  const handleSaveImage = async (uri: string) => {
-    try {
-      await MediaLibrary.createAssetAsync(uri);
-      alert('Image saved to gallery!');
-    } catch (error) {
-      console.error('Save image error: ', error);
-    }
-  };
-
-  if (!permission) {
-    // Camera permissions are still loading.
-    return <View />;
-  }
-
-  if (!permission.granted) {
-    // Camera permissions are not granted yet.
-    return (
-      <View style={styles.container}>
-        <Text style={styles.message}>We need your permission to show the camera</Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.button}>
-          <Text style={styles.text}>Grant Permission</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  function toggleCameraFacing() {
-    setFacing((current) => (current === 'back' ? 'front' : 'back'));
-  }
-
-  function toggleScanner() {
-    setIsScannerActive((prev) => !prev);
-  }
 
   return (
     <View style={styles.container}>
-      <View style={styles.topSection}>
-        <Text style={styles.answersText}>Project Label</Text>
-        <TouchableOpacity style={styles.buttonGetUnlim}>
-          <Text style={styles.buttonText}>CHECK</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.mainContent}>
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing={facing}
-          mirror={true}
-          mode="picture"
-          // onBarcodeScanned={isScannerActive ? handleImageCapture : undefined}
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-          barcodeScannerSettings={{
-            barcodeTypes: [
-              'qr',
-              'ean13',
-              'ean8',
-              'code39',
-              'code93',
-              'code128',
-              'upc_a',
-              'upc_e',
-              'pdf417',
-              'aztec',
-              'datamatrix',
-            ],
-          }}
-        >
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.sideButton} onPress={toggleCameraFacing}>
-              <MaterialIcons name="flip-camera-ios" size={30} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.captureButton} onPress={toggleScanner}>
-              <MaterialIcons name="barcode-reader" size={50} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.captureButton} onPress={handleImageCapture}>
-              <MaterialIcons name="camera" size={50} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.sideButton} onPress={handleImagePick}>
-              <MaterialIcons name="photo-library" size={30} color="white" />
-            </TouchableOpacity>
+      <Button title="Pick an image from camera roll" onPress={pickImage} />
+      {image && (
+        <View style={styles.contentContainer}>
+          <Image source={{ uri: image }} style={styles.image} />
+          <View style={styles.selectContainer}>
+            <Text>Language:</Text>
+            <DropDownPicker
+              open={langOpen}
+              value={lang}
+              items={[
+                { label: 'English', value: 'en' },
+                { label: 'Português', value: 'pt' },
+                { label: 'Español', value: 'es' },
+              ]}
+              setOpen={setLangOpen}
+              setValue={setLang}
+              style={styles.picker}
+            />
+            <Text>Confidence:</Text>
+            <DropDownPicker
+              open={confidenceOpen}
+              value={confidence}
+              items={[
+                { label: '0.5', value: 0.5 },
+                { label: '0.7', value: 0.7 },
+                { label: '0.9', value: 0.9 },
+              ]}
+              setOpen={setConfidenceOpen}
+              setValue={setConfidence}
+              style={styles.picker}
+            />
           </View>
-        </CameraView>
-      </View>
-      <View style={styles.bottomNavigation}>
-        <TouchableOpacity style={styles.navItem} onPress={toggleCameraFacing}>
-          <MaterialIcons name="camera-alt" size={30} color="#6c6c6c" />
-        </TouchableOpacity>
-        {/* <TouchableOpacity style={styles.navItem} onPress={handleImagePick}>
-          <MaterialIcons name="segment" size={30} color="#6c6c6c" />
-        </TouchableOpacity> */}
-        <TouchableOpacity style={styles.navItem} onPress={() => handleSaveImage(imageUri)}>
-          <FontAwesome name="server" size={30} color="#6c6c6c" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={toggleScanner}>
-          <MaterialIcons name="barcode-reader" size={30} color="#6c6c6c" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={handleImageCapture}>
-          <MaterialIcons name="save" size={30} color="#6c6c6c" />
-        </TouchableOpacity>
-      </View>
-      {imageUri && <Image source={{ uri: imageUri }} style={styles.image} />}
-      {ocrResult && <Text style={styles.ocrText}>OCR Result: {ocrResult}</Text>}
+          <Button title="Send Image" onPress={sendImage} />
+          {processedImage && <Image source={{ uri: processedImage }} style={styles.image} />}
+          {extractedText && <Text style={styles.text}>{extractedText}</Text>}
+        </View>
+      )}
     </View>
   );
 }
@@ -186,90 +115,28 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f7f7f7',
-    padding: 16,
-  },
-  camera: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'flex-end',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 20,
-  },
-  sideButton: {
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: 10,
-    borderRadius: 50,
-  },
-  captureButton: {
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: 20,
-    borderRadius: 50,
-  },
-  topSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  answersText: {
-    fontSize: 16,
-    color: '#6c6c6c',
-  },
-  buttonGetUnlim: {
-    backgroundColor: '#e6e6e6',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-  },
-  buttonText: {
-    fontSize: 14,
-    color: '#6c6c6c',
-  },
-  mainContent: {
-    flex: 1,
     justifyContent: 'center',
+  },
+  contentContainer: {
     alignItems: 'center',
-  },
-  message: {
-    textAlign: 'center',
-    paddingBottom: 10,
-  },
-  bottomNavigation: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 15,
-    backgroundColor: '#e6e6e6',
-  },
-  navItem: {
-    alignItems: 'center',
-  },
-  navText: {
-    fontSize: 24,
-    color: '#6c6c6c',
+    marginTop: 20,
   },
   image: {
-    width: '100%',
+    width: 200,
     height: 200,
-    resizeMode: 'contain',
+    marginVertical: 20,
+  },
+  selectContainer: {
+    marginVertical: 20,
+    width: 200,
+  },
+  picker: {
     marginVertical: 10,
   },
-  ocrText: {
-    textAlign: 'center',
-    fontSize: 16,
-    margin: 10,
-  },
   text: {
-  
-  },
-  button: {
-  
+    marginTop: 20,
+    fontSize: 16,
+    textAlign: 'center',
   },
 });
-
-declare module 'tesseract.js';

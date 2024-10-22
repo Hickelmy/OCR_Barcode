@@ -1,6 +1,7 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    "jsx": "react",
     "strict": true,
     "paths": {
       "@/*": [
@@ -9,7 +10,7 @@
     }
   },
   "include": [
-    "**/*.ts",
+     "app/(tabs)/barcode.js",
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"

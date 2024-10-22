@@ -45,6 +45,8 @@
           "microphonePermissionText": "$(PRODUCT_NAME) needs access to your Microphone.",
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
           "photosPermission": "The app accesses your photos to let you share them with your friends.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
+          "isAccessMediaLocationEnabled": true,
           "recordAudioAndroid": true
         }
       ],
